@@ -1,6 +1,6 @@
 {
   "name": "@ledgeroxyz/x402-toolkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TypeScript toolkit for x402 (HTTP 402 Payment Required) machine-payment flows — built for autonomous agents like LEDGERO that pay per-request for their own compute and data lookups.",
   "type": "module",
   "license": "MIT",

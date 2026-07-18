@@ -59,9 +59,9 @@ export interface FallbackRequestOptions {
  * a time, via `client.request`. Returns the first successful response.
  *
  * If a provider's request throws — a network error, `PaymentFailedError`,
- * `NoAcceptablePaymentRequirementsError`, `BudgetExceededError`,
- * `MaxRetriesExceededError`, or anything else `X402Client#request` can throw
- * — it falls through to the next provider instead of failing the whole call.
+ * `NoAcceptablePaymentRequirementsError`, `BudgetExceededError`, or anything
+ * else `X402Client#request` can throw — it falls through to the next
+ * provider instead of failing the whole call.
  *
  * If every provider fails, throws `AllProvidersFailedError` with each
  * provider's individual failure reason attached in `.failures`.
