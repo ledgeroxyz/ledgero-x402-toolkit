@@ -1,0 +1,32 @@
+export { checkBudget } from "./budget.js";
+export { createX402Client, X402Client } from "./client.js";
+export {
+  BudgetExceededError,
+  MaxRetriesExceededError,
+  NoAcceptablePaymentRequirementsError,
+  PaymentFailedError,
+  X402ToolkitError,
+} from "./errors.js";
+export { generateIdempotencyKey, InMemoryIdempotencyStore } from "./idempotency.js";
+export { DEFAULT_RETRY_OPTIONS, withRetry } from "./retry.js";
+export { InMemorySpendTracker } from "./spend-tracker.js";
+export { X402_VERSION } from "./types.js";
+
+export type { BudgetExceededDetails } from "./errors.js";
+export type { RetryOptions } from "./retry.js";
+export type {
+  BudgetPolicy,
+  IdempotencyStore,
+  PaymentPayload,
+  PaymentRequirements,
+  PaymentRequirementsResponse,
+  PaymentSigner,
+  SignContext,
+  SpendQuery,
+  SpendRecord,
+  SpendTracker,
+  X402ClientOptions,
+  X402PaymentInfo,
+  X402RequestOptions,
+  X402Response,
+} from "./types.js";

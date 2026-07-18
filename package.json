@@ -1,0 +1,65 @@
+{
+  "name": "@ledgeroxyz/x402-toolkit",
+  "version": "0.1.0",
+  "description": "TypeScript toolkit for x402 (HTTP 402 Payment Required) machine-payment flows — built for autonomous agents like LEDGERO that pay per-request for their own compute and data lookups.",
+  "type": "module",
+  "license": "MIT",
+  "author": "ledgeroxyz",
+  "homepage": "https://ledgero.xyz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ledgeroxyz/ledgero-x402-toolkit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ledgeroxyz/ledgero-x402-toolkit/issues"
+  },
+  "keywords": [
+    "x402",
+    "http-402",
+    "payment-required",
+    "machine-payments",
+    "agent-payments",
+    "autonomous-agents",
+    "web3",
+    "rwa",
+    "ledgero"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "lint": "tsc --noEmit -p tsconfig.test.json",
+    "prepublishOnly": "pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
