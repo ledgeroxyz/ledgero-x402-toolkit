@@ -1,4 +1,5 @@
 import type { RetryOptions } from "./retry.js";
+import type { X402EventListener } from "./telemetry.js";
 
 /**
  * x402 protocol version this toolkit targets. Sent/echoed on payment payloads
@@ -183,6 +184,14 @@ export interface X402ClientOptions {
   onPaymentAttempt?: (info: { requirements: PaymentRequirements; url: string }) => void;
   /** Called after a payment payload has been produced and recorded. */
   onPaymentSuccess?: (info: { requirements: PaymentRequirements; payload: PaymentPayload }) => void;
+  /**
+   * Optional structured event hook — fires `request_start`,
+   * `payment_required`, `payment_signed`, `retry`, `budget_rejected`,
+   * `response`, and `error` events over the lifetime of each `request()`
+   * call. Use it to plug in your own logger/metrics without this package
+   * taking a logging dependency. See `X402Event` for the event shapes.
+   */
+  onEvent?: X402EventListener;
 }
 
 export interface X402RequestOptions {

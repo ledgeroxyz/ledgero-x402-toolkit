@@ -1,8 +1,9 @@
 import { checkBudget } from "./budget.js";
-import { NoAcceptablePaymentRequirementsError, PaymentFailedError, X402ToolkitError } from "./errors.js";
+import { BudgetExceededError, NoAcceptablePaymentRequirementsError, PaymentFailedError, X402ToolkitError } from "./errors.js";
 import { InMemoryIdempotencyStore } from "./idempotency.js";
 import { DEFAULT_RETRY_OPTIONS, withRetry, type RetryOptions } from "./retry.js";
 import { InMemorySpendTracker } from "./spend-tracker.js";
+import type { X402Event, X402EventListener } from "./telemetry.js";
 import type {
   BudgetPolicy,
   IdempotencyStore,
@@ -64,6 +65,7 @@ export class X402Client {
   private readonly selectPaymentRequirements: (accepts: PaymentRequirements[]) => PaymentRequirements | undefined;
   private readonly onPaymentAttempt: X402ClientOptions["onPaymentAttempt"];
   private readonly onPaymentSuccess: X402ClientOptions["onPaymentSuccess"];
+  private readonly onEvent: X402EventListener | undefined;
 
   constructor(options: X402ClientOptions) {
     if (!options.signer) {
@@ -79,6 +81,11 @@ export class X402Client {
     this.selectPaymentRequirements = options.selectPaymentRequirements ?? ((accepts) => accepts[0]);
     this.onPaymentAttempt = options.onPaymentAttempt;
     this.onPaymentSuccess = options.onPaymentSuccess;
+    this.onEvent = options.onEvent;
+  }
+
+  private emit(event: X402Event): void {
+    this.onEvent?.(event);
   }
 
   /**
@@ -93,7 +100,29 @@ export class X402Client {
    */
   async request(input: string | URL, init: RequestInit = {}, options: X402RequestOptions = {}): Promise<X402Response> {
     const url = typeof input === "string" ? input : input.toString();
-    const retryOptions: RetryOptions = { ...this.defaultRetry, ...options.retry };
+    this.emit({ type: "request_start", url, timestamp: Date.now(), idempotencyKey: options.idempotencyKey });
+
+    try {
+      return await this.performRequest(url, init, options);
+    } catch (error) {
+      // Budget rejections already emit their own, more specific `budget_rejected`
+      // event below — avoid emitting a redundant generic `error` for them too.
+      if (!(error instanceof BudgetExceededError)) {
+        this.emit({ type: "error", url, timestamp: Date.now(), error });
+      }
+      throw error;
+    }
+  }
+
+  private async performRequest(url: string, init: RequestInit, options: X402RequestOptions): Promise<X402Response> {
+    const retryOptions: RetryOptions = {
+      ...this.defaultRetry,
+      ...options.retry,
+      onRetry: (attempt, delayMs, reason) => {
+        this.emit({ type: "retry", url, timestamp: Date.now(), attempt, delayMs, reason });
+        (options.retry?.onRetry ?? this.defaultRetry.onRetry)?.(attempt, delayMs, reason);
+      },
+    };
 
     const initialHeaders = new Headers(init.headers);
     if (options.idempotencyKey) initialHeaders.set(IDEMPOTENCY_HEADER, options.idempotencyKey);
@@ -106,10 +135,18 @@ export class X402Client {
     if (firstResponse.status !== 402) {
       const response = firstResponse as X402Response;
       response.x402 = { paid: false };
+      this.emit({ type: "response", url, timestamp: Date.now(), status: response.status, paid: false });
       return response;
     }
 
     const requirementsResponse = await this.parsePaymentRequirements(firstResponse);
+    this.emit({
+      type: "payment_required",
+      url,
+      timestamp: Date.now(),
+      requirements: requirementsResponse.accepts,
+    });
+
     const requirements = this.selectPaymentRequirements(requirementsResponse.accepts);
     if (!requirements) {
       throw new NoAcceptablePaymentRequirementsError();
@@ -124,7 +161,14 @@ export class X402Client {
 
     if (!paymentPayload) {
       if (budget) {
-        await checkBudget(this.spendTracker, budget, requirements, resourceLabel);
+        try {
+          await checkBudget(this.spendTracker, budget, requirements, resourceLabel);
+        } catch (error) {
+          if (error instanceof BudgetExceededError) {
+            this.emit({ type: "budget_rejected", url, timestamp: Date.now(), details: error.details });
+          }
+          throw error;
+        }
       }
 
       this.onPaymentAttempt?.({ requirements, url });
@@ -158,6 +202,8 @@ export class X402Client {
       this.onPaymentSuccess?.({ requirements, payload: paymentPayload });
     }
 
+    this.emit({ type: "payment_signed", url, timestamp: Date.now(), requirements, reused });
+
     const paidHeaders = new Headers(init.headers);
     if (options.idempotencyKey) paidHeaders.set(IDEMPOTENCY_HEADER, options.idempotencyKey);
     paidHeaders.set(X_PAYMENT_HEADER, encodePaymentPayload(paymentPayload));
@@ -184,6 +230,8 @@ export class X402Client {
       payload: paymentPayload,
       settlement: settlementHeader ? decodeSettlement(settlementHeader) : undefined,
     };
+
+    this.emit({ type: "response", url, timestamp: Date.now(), status: response.status, paid: true });
 
     return response;
   }

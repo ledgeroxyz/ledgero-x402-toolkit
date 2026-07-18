@@ -18,6 +18,18 @@ export type { BudgetExceededDetails } from "./errors.js";
 export type { FallbackProvider, FallbackRequestOptions, ProviderFailure } from "./fallback.js";
 export type { RetryOptions } from "./retry.js";
 export type {
+  BudgetRejectedEvent,
+  ErrorEvent,
+  PaymentRequiredEvent,
+  PaymentSignedEvent,
+  RequestStartEvent,
+  ResponseEvent,
+  RetryEvent,
+  X402Event,
+  X402EventListener,
+  X402EventType,
+} from "./telemetry.js";
+export type {
   BudgetPolicy,
   IdempotencyStore,
   PaymentPayload,
