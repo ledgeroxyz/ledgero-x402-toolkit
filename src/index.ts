@@ -1,3 +1,4 @@
+export { FileIdempotencyStore, FileSpendTracker } from "./adapters/file-store.js";
 export { checkBudget } from "./budget.js";
 export { createX402Client, X402Client } from "./client.js";
 export {
