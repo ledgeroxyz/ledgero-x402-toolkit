@@ -1,3 +1,4 @@
+import type { RateLimiterProvider } from "./rate-limit.js";
 import type { RetryOptions } from "./retry.js";
 import type { X402EventListener } from "./telemetry.js";
 
@@ -178,6 +179,15 @@ export interface X402ClientOptions {
   budget?: BudgetPolicy;
   /** Default retry/backoff behavior for transient network/5xx failures. */
   retry?: RetryOptions;
+  /**
+   * Optional rate limiter capping outbound request rate. Pass a single
+   * `RateLimiter` to share one bucket across every request this client
+   * makes, or a `(resourceKey: string) => RateLimiter` factory to cap each
+   * resource/provider independently (one bucket per resource, created
+   * lazily and cached). One token is consumed per logical `request()` call,
+   * keyed by `options.resource` (falling back to the request URL).
+   */
+  rateLimiter?: RateLimiterProvider;
   /** Choose which of several acceptable payment options to use. Defaults to the first entry. */
   selectPaymentRequirements?: (accepts: PaymentRequirements[]) => PaymentRequirements;
   /** Called right before a payment is signed (after budget checks pass). */

@@ -11,11 +11,13 @@ export {
 export { AllProvidersFailedError, requestWithFallback } from "./fallback.js";
 export { generateIdempotencyKey, InMemoryIdempotencyStore } from "./idempotency.js";
 export { DEFAULT_RETRY_OPTIONS, withRetry } from "./retry.js";
+export { RateLimiter, RateLimitExceededError } from "./rate-limit.js";
 export { InMemorySpendTracker } from "./spend-tracker.js";
 export { X402_VERSION } from "./types.js";
 
 export type { BudgetExceededDetails } from "./errors.js";
 export type { FallbackProvider, FallbackRequestOptions, ProviderFailure } from "./fallback.js";
+export type { RateLimiterOptions, RateLimiterProvider } from "./rate-limit.js";
 export type { RetryOptions } from "./retry.js";
 export type {
   BudgetRejectedEvent,

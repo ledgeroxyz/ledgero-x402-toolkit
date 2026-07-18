@@ -1,6 +1,7 @@
 import { checkBudget } from "./budget.js";
 import { BudgetExceededError, NoAcceptablePaymentRequirementsError, PaymentFailedError, X402ToolkitError } from "./errors.js";
 import { InMemoryIdempotencyStore } from "./idempotency.js";
+import type { RateLimiter, RateLimiterProvider } from "./rate-limit.js";
 import { DEFAULT_RETRY_OPTIONS, withRetry, type RetryOptions } from "./retry.js";
 import { InMemorySpendTracker } from "./spend-tracker.js";
 import type { X402Event, X402EventListener } from "./telemetry.js";
@@ -66,6 +67,8 @@ export class X402Client {
   private readonly onPaymentAttempt: X402ClientOptions["onPaymentAttempt"];
   private readonly onPaymentSuccess: X402ClientOptions["onPaymentSuccess"];
   private readonly onEvent: X402EventListener | undefined;
+  private readonly rateLimiter: RateLimiterProvider | undefined;
+  private readonly rateLimiterCache = new Map<string, RateLimiter>();
 
   constructor(options: X402ClientOptions) {
     if (!options.signer) {
@@ -82,10 +85,24 @@ export class X402Client {
     this.onPaymentAttempt = options.onPaymentAttempt;
     this.onPaymentSuccess = options.onPaymentSuccess;
     this.onEvent = options.onEvent;
+    this.rateLimiter = options.rateLimiter;
   }
 
   private emit(event: X402Event): void {
     this.onEvent?.(event);
+  }
+
+  /** Resolves the `RateLimiter` for a given resource key, creating and caching one lazily if `rateLimiter` is a factory. */
+  private resolveRateLimiter(resourceKey: string): RateLimiter | undefined {
+    if (!this.rateLimiter) return undefined;
+    if (typeof this.rateLimiter !== "function") return this.rateLimiter;
+
+    let limiter = this.rateLimiterCache.get(resourceKey);
+    if (!limiter) {
+      limiter = this.rateLimiter(resourceKey);
+      this.rateLimiterCache.set(resourceKey, limiter);
+    }
+    return limiter;
   }
 
   /**
@@ -115,6 +132,11 @@ export class X402Client {
   }
 
   private async performRequest(url: string, init: RequestInit, options: X402RequestOptions): Promise<X402Response> {
+    const rateLimiter = this.resolveRateLimiter(options.resource ?? url);
+    if (rateLimiter) {
+      await rateLimiter.acquire();
+    }
+
     const retryOptions: RetryOptions = {
       ...this.defaultRetry,
       ...options.retry,
