@@ -16,6 +16,7 @@ export {
   defineDataProvider,
   PROVIDER_TYPES,
 } from "./providers.js";
+export { queryDataProvider } from "./query.js";
 export { DEFAULT_RETRY_OPTIONS, withRetry } from "./retry.js";
 export { RateLimiter, RateLimitExceededError } from "./rate-limit.js";
 export { InMemorySpendTracker } from "./spend-tracker.js";
@@ -30,6 +31,7 @@ export type {
   ProviderQueryStats,
   ProviderType,
 } from "./providers.js";
+export type { QueryDataProviderOptions, QueryDataProviderResult } from "./query.js";
 export type { RateLimiterOptions, RateLimiterProvider } from "./rate-limit.js";
 export type { RetryOptions } from "./retry.js";
 export type {
