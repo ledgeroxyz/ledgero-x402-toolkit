@@ -199,6 +199,80 @@ const perResourceClient = createX402Client({
 
 `onLimitExceeded: "queue"` (the default) waits for a token before making the request; `"reject"` throws `RateLimitExceededError` immediately instead of waiting.
 
+## Data-provider marketplace (LEDGERO dapp alignment)
+
+The [LEDGERO dapp](https://ledgero.xyz) has a **data-provider marketplace** (whitepaper utility 5): external data sources — property/asset **registries**, **valuation** feeds, **KYC/AML** providers, and **other** — that the underwriting agent queries and **pays per lookup** in `$LDGR`. In the dapp, "querying" a provider debits the querier the provider's `queryFee` (default `5`), credits the provider's owner, and bumps that provider's `queryCount`/`totalEarned`.
+
+That is exactly the x402 "agent pays its own way, per data lookup" pattern this toolkit models — so `providers.ts` + `query.ts` bring the same marketplace concept onto the payment layer, letting the dapp adopt this package as its payment plumbing. The provider types and default fee match the dapp one-for-one:
+
+| Concept | Dapp | This toolkit |
+|---|---|---|
+| Provider categories | `PROVIDER_TYPES`: `registry` · `valuation` · `kyc_aml` · `other` | `PROVIDER_TYPES` / `ProviderType` — identical set |
+| Default per-query fee | `DEFAULT_QUERY_FEE = 5` ($LDGR) | `DEFAULT_QUERY_FEE = "5"` (atomic-unit string; configurable per provider) |
+| Provider record | `DataProvider` (`id`, `name`, `providerType`, `queryFee`, `queryCount`, `totalEarned`, ...) | `DataProvider` descriptor (same fields) + `resourceUrl`; stats tracked as `queryCount`/`totalSpent` on the registry |
+| Registering / listing | `registerProvider` / `listProviders` | `DataProviderRegistry#register` / `#list(providerType?)` / `#get(id)` |
+| Paying for a lookup | `queryProvider` — moves funds, bumps stats | `queryDataProvider` — settles a real 402 payment via `X402Client`, bumps stats |
+
+The difference is where the payment settles: the dapp moves an in-ledger `$LDGR` balance, whereas this toolkit settles a real per-lookup HTTP payment through the 402 → pay → retry flow (so idempotency, retry/backoff, rate limiting, and budget enforcement all apply). The amount actually charged comes from the resource server's `402` (`maxAmountRequired`); `queryFee` is the provider's advertised/expected fee, mirroring the dapp's `provider.queryFee`.
+
+### Register providers and query one, paying per lookup
+
+```ts
+import {
+  createX402Client,
+  DataProviderRegistry,
+  defineDataProvider,
+  queryDataProvider,
+  InMemorySpendTracker,
+  BudgetExceededError,
+} from "@ledgeroxyz/x402-toolkit";
+
+const spendTracker = new InMemorySpendTracker();
+const client = createX402Client({
+  signer,
+  spendTracker,
+  // Per-provider cap: never spend more than 1000 atomic units on any one provider per day.
+  budget: { maxAmount: "1000", windowMs: 24 * 60 * 60 * 1000, scope: "resource" },
+});
+
+// Build the marketplace — same provider types as the dapp.
+const registry = new DataProviderRegistry();
+const titleRegistry = defineDataProvider({
+  name: "County Title Registry",
+  providerType: "registry",
+  resourceUrl: "https://registry.example/v1/title-search",
+  queryFee: "5", // defaults to DEFAULT_QUERY_FEE ("5") if omitted
+});
+registry.register(titleRegistry);
+
+// List by type, exactly like the dapp's marketplace view.
+registry.list("registry"); // -> [titleRegistry]
+
+// Query it — the 402 -> pay -> retry flow runs, spend is tracked against the
+// provider, and the registry's queryCount/totalSpent are bumped.
+try {
+  const { response, paid, amountCharged } = await queryDataProvider(
+    client,
+    titleRegistry,
+    { method: "POST", body: JSON.stringify({ parcelId: "APN-123" }), headers: { "content-type": "application/json" } },
+    { registry }
+  );
+
+  const data = await response.json();
+  console.log({ paid, amountCharged }); // e.g. { paid: true, amountCharged: "5" }
+  console.log(registry.getStats(titleRegistry.id)); // { queryCount: 1, totalSpent: "5" }
+} catch (error) {
+  if (error instanceof BudgetExceededError) {
+    // The lookup would blow the per-provider budget — refused before signing, nothing spent.
+    console.warn("Skipping lookup — over budget:", error.details);
+  } else {
+    throw error;
+  }
+}
+```
+
+Budget enforcement is delegated to the client: an over-budget lookup throws `BudgetExceededError` before any payment is signed, and is not counted against the provider. Reused (idempotent) payments — a retry of the same logical lookup via an `idempotencyKey` — are not double-counted, so registry stats stay consistent with the `SpendTracker`. `DataProviderStore` is a pluggable interface (like `SpendTracker`/`IdempotencyStore`), so swap `DataProviderRegistry` for a database-backed store to share the marketplace across processes.
+
 ## API overview
 
 | Export | What it is |
@@ -217,6 +291,9 @@ const perResourceClient = createX402Client({
 | `requestWithFallback` / `FallbackProvider` / `AllProvidersFailedError` | Tries an ordered list of providers for the same logical resource via `X402Client`, falling through to the next on any failure. |
 | `RateLimiter` / `RateLimiterOptions` / `RateLimiterProvider` / `RateLimitExceededError` | Token-bucket rate limiter; wire into `X402ClientOptions#rateLimiter` to cap outbound request rate globally or per resource/provider. |
 | `X402Event` / `X402EventListener` / `X402ClientOptions#onEvent` | Structured telemetry hook — `request_start`, `payment_required`, `payment_signed`, `retry`, `budget_rejected`, `response`, `error` — for plugging in your own logger/metrics. |
+| `DataProvider` / `defineDataProvider` / `PROVIDER_TYPES` / `DEFAULT_QUERY_FEE` | Data-provider marketplace model aligned with the LEDGERO dapp (`registry`/`valuation`/`kyc_aml`/`other`). |
+| `DataProviderStore` / `DataProviderRegistry` | Pluggable registry of providers + per-provider `queryCount`/`totalSpent` stats; in-memory default. |
+| `queryDataProvider(client, provider, init?, options?)` | Runs a data-lookup through `X402Client` (402 → pay → retry), records spend + registry stats, enforces budget. Returns the response and amount charged. |
 
 All types are exported from the single entry point, `@ledgeroxyz/x402-toolkit`.
 
