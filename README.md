@@ -4,7 +4,7 @@ A TypeScript toolkit for **x402** (HTTP `402 Payment Required`) machine-payment 
 
 ## Why this exists
 
-[LEDGERO](https://ledgero.xyz) (`$LDGR`) is an AI underwriting agent for real-world-asset (RWA) tokenization. It runs continuously, and it pays for its own compute and third-party data lookups **per-assessment**, autonomously, via x402-style machine payments: the agent requests a resource, gets a `402` back with payment requirements, pays, retries with proof of payment, and gets the resource — all without a human clicking "approve" on each call. That's what makes the underwriting pipeline *autonomous* rather than merely automated.
+[LEDGERO](https://ledgero.xyz) (`$LEDGER`) is an AI underwriting agent for real-world-asset (RWA) tokenization. It runs continuously, and it pays for its own compute and third-party data lookups **per-assessment**, autonomously, via x402-style machine payments: the agent requests a resource, gets a `402` back with payment requirements, pays, retries with proof of payment, and gets the resource — all without a human clicking "approve" on each call. That's what makes the underwriting pipeline *autonomous* rather than merely automated.
 
 This package is the general-purpose plumbing that pattern needs, extracted as a standalone, dependency-light library: 402 detection and payment-requirements parsing, a pluggable payment signer interface, idempotent retries so a flaky network doesn't cause a double-pay, budget enforcement so an agent can't blow past a spending cap, retry/backoff for ordinary transient failures, multi-provider fallback, rate limiting, structured telemetry hooks, and file-based persistent adapters for spend/idempotency state. It is pure client/utility logic — **no UI, no smart contract code**, and no hard dependency on any blockchain SDK or RPC provider. You inject a `PaymentSigner`; this package never touches a private key.
 
@@ -201,19 +201,19 @@ const perResourceClient = createX402Client({
 
 ## Data-provider marketplace (LEDGERO dapp alignment)
 
-The [LEDGERO dapp](https://ledgero.xyz) has a **data-provider marketplace** (whitepaper utility 5): external data sources — property/asset **registries**, **valuation** feeds, **KYC/AML** providers, and **other** — that the underwriting agent queries and **pays per lookup** in `$LDGR`. In the dapp, "querying" a provider debits the querier the provider's `queryFee` (default `5`), credits the provider's owner, and bumps that provider's `queryCount`/`totalEarned`.
+The [LEDGERO dapp](https://ledgero.xyz) has a **data-provider marketplace** (whitepaper utility 5): external data sources — property/asset **registries**, **valuation** feeds, **KYC/AML** providers, and **other** — that the underwriting agent queries and **pays per lookup** in `$LEDGER`. In the dapp, "querying" a provider debits the querier the provider's `queryFee` (default `5`), credits the provider's owner, and bumps that provider's `queryCount`/`totalEarned`.
 
 That is exactly the x402 "agent pays its own way, per data lookup" pattern this toolkit models — so `providers.ts` + `query.ts` bring the same marketplace concept onto the payment layer, letting the dapp adopt this package as its payment plumbing. The provider types and default fee match the dapp one-for-one:
 
 | Concept | Dapp | This toolkit |
 |---|---|---|
 | Provider categories | `PROVIDER_TYPES`: `registry` · `valuation` · `kyc_aml` · `other` | `PROVIDER_TYPES` / `ProviderType` — identical set |
-| Default per-query fee | `DEFAULT_QUERY_FEE = 5` ($LDGR) | `DEFAULT_QUERY_FEE = "5"` (atomic-unit string; configurable per provider) |
+| Default per-query fee | `DEFAULT_QUERY_FEE = 5` ($LEDGER) | `DEFAULT_QUERY_FEE = "5"` (atomic-unit string; configurable per provider) |
 | Provider record | `DataProvider` (`id`, `name`, `providerType`, `queryFee`, `queryCount`, `totalEarned`, ...) | `DataProvider` descriptor (same fields) + `resourceUrl`; stats tracked as `queryCount`/`totalSpent` on the registry |
 | Registering / listing | `registerProvider` / `listProviders` | `DataProviderRegistry#register` / `#list(providerType?)` / `#get(id)` |
 | Paying for a lookup | `queryProvider` — moves funds, bumps stats | `queryDataProvider` — settles a real 402 payment via `X402Client`, bumps stats |
 
-The difference is where the payment settles: the dapp moves an in-ledger `$LDGR` balance, whereas this toolkit settles a real per-lookup HTTP payment through the 402 → pay → retry flow (so idempotency, retry/backoff, rate limiting, and budget enforcement all apply). The amount actually charged comes from the resource server's `402` (`maxAmountRequired`); `queryFee` is the provider's advertised/expected fee, mirroring the dapp's `provider.queryFee`.
+The difference is where the payment settles: the dapp moves an in-ledger `$LEDGER` balance, whereas this toolkit settles a real per-lookup HTTP payment through the 402 → pay → retry flow (so idempotency, retry/backoff, rate limiting, and budget enforcement all apply). The amount actually charged comes from the resource server's `402` (`maxAmountRequired`); `queryFee` is the provider's advertised/expected fee, mirroring the dapp's `provider.queryFee`.
 
 ### Register providers and query one, paying per lookup
 

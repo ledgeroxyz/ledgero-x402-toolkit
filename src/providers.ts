@@ -4,7 +4,7 @@
  *
  * In the dapp, external data sources (property registries, valuation feeds,
  * KYC/AML providers) register as providers that the underwriting agent queries
- * and pays **per lookup** in `$LDGR`. That "agent pays its own way per data
+ * and pays **per lookup** in `$LEDGER`. That "agent pays its own way per data
  * lookup" flow is exactly what the x402 payment layer in this package models,
  * so this module layers the same marketplace concept on top of `X402Client`:
  * providers are described the same way the dapp describes them, and each query
@@ -30,7 +30,7 @@ export type ProviderType = (typeof PROVIDER_TYPES)[number];
 /**
  * Default per-query fee for a data provider.
  *
- * The LEDGERO dapp uses `5` `$LDGR` (its `DEFAULT_QUERY_FEE`). Amounts in this
+ * The LEDGERO dapp uses `5` `$LEDGER` (its `DEFAULT_QUERY_FEE`). Amounts in this
  * toolkit are decimal integer strings in the paying asset's atomic units (see
  * `SpendRecord.amount`), so the default is expressed as the string `"5"`. The
  * value is only a default/advertised fee — it is configurable per provider,
